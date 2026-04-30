@@ -12,15 +12,15 @@ from resume_analyzer import extract_info, load_models, match_resume_to_jd, predi
 
 app = FastAPI(title="ResumeAI")
 
-origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:8000").split(",")
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[
+        "https://resume-analyzer-chi-six.vercel.app",
+        "http://localhost:8000",
+    ],
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
-
 MODEL_PATH   = os.getenv("MODEL_PATH",   "resume_model.joblib")
 ENCODER_PATH = os.getenv("ENCODER_PATH", "label_encoder.joblib")
 

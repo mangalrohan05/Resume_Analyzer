@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]==0.30.1
+python-multipart
+pydantic
+pypdf
+scikit-learn
+pandas
+numpy
+nltk
+spacy
+joblib

@@ -10,6 +10,7 @@ from pypdf import PdfReader
 
 from resume_analyzer import extract_info, load_models, match_resume_to_jd, predict_category
 
+
 app = FastAPI(title="ResumeAI")
 
 app.add_middleware(
@@ -17,10 +18,14 @@ app.add_middleware(
     allow_origins=[
         "https://resume-analyzer-chi-six.vercel.app",
         "http://localhost:8000",
+        "http://127.0.0.1:8000",
     ],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    allow_credentials=False
 )
+
+
 MODEL_PATH   = os.getenv("MODEL_PATH",   "resume_model.joblib")
 ENCODER_PATH = os.getenv("ENCODER_PATH", "label_encoder.joblib")
 
@@ -83,6 +88,5 @@ def analyze(body: AnalyzeRequest):
 @app.get("/health")
 def health():
     return {"status": "ok", "model_loaded": pipeline is not None}
-
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

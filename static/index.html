@@ -329,7 +329,9 @@
 </div>
 
 <script>
-  const API = 'https://resume-analyzer-wslv.onrender.com';
+const API = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost'
+  ? ''
+  : 'https://resume-analyzer-wslv.onrender.com';
 
   const dropZone     = document.getElementById('dropZone');
   const fileInput    = document.getElementById('fileInput');

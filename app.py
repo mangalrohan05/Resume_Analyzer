@@ -12,10 +12,12 @@ from resume_analyzer import extract_info, load_models, match_resume_to_jd, predi
 
 app = FastAPI(title="ResumeAI")
 
+origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:8000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=origins,
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 

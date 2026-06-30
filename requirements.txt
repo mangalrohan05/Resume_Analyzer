@@ -1,11 +1,9 @@
-fastapi
-uvicorn[standard]==0.30.1
-python-multipart
-pydantic
-pypdf
-scikit-learn
 pandas
 numpy
 nltk
+sentence-transformers
+scikit-learn
 spacy
-joblib
+tensorflow
+requests
+streamlit

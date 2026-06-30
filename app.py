@@ -1,92 +1,147 @@
-import io
+import streamlit as st
+import pandas as pd
+import numpy as np
 import os
+from src.preprocessing import preprocessing
+from src.embeddings import EmbeddingModel
+from src.skill_extractor import SkillExtractor
+from src.rag import ResumeRAG
+from src.classifier import ResumeClassifier
+from src.scoring import get_final_match_score
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from pypdf import PdfReader
+st.set_page_config(page_title="Resume Analyzer", layout="wide", page_icon="📄")
 
-from resume_analyzer import extract_info, load_models, match_resume_to_jd, predict_category
+# Cache models to load them only once
+@st.cache_resource
+def load_models():
+    embed_model = EmbeddingModel()
+    skill_extractor = SkillExtractor()
+    return embed_model, skill_extractor
 
+@st.cache_data
+def load_data():
+    if os.path.exists('data/Resume.csv'):
+        df = pd.read_csv('data/Resume.csv', skip_blank_lines=True)
+        if 'cleaned_text' not in df.columns:
+            df['cleaned_text'] = df['Resume_str'].apply(preprocessing)
+        return df
+    return None
 
-app = FastAPI(title="ResumeAI")
+def main():
+    st.title("📄 Resume Analyzer App")
+    st.markdown("Analyze resumes, match them against job descriptions, and query candidates using RAG.")
+    
+    with st.spinner("Loading models and data..."):
+        embed_model, skill_extractor = load_models()
+        df = load_data()
+        
+    if df is None:
+        st.error("Dataset not found at `data/Resume.csv`.")
+        st.stop()
+        
+    # Generate or Load Embeddings
+    embed_path = 'models/embeddings.npy'
+    if os.path.exists(embed_path):
+        embeddings = embed_model.load(embed_path)
+    else:
+        with st.spinner("Generating embeddings for the dataset. This might take a while..."):
+            os.makedirs('models', exist_ok=True)
+            embeddings = embed_model.encode(df['cleaned_text'].tolist(), show_progress_bar=True)
+            embed_model.save(embeddings, embed_path)
+            st.success("Embeddings generated and saved successfully!")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://resume-analyzer-chi-six.vercel.app",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-    ],
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["*"],
-    allow_credentials=False
-)
+    tab1, tab2, tab3 = st.tabs(["📊 Classification", "🎯 Scoring", "💬 RAG Q&A"])
+    
+    with tab1:
+        st.header("Resume Classification")
+        st.write("Predict the job category of a given resume.")
+        
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            resume_text = st.text_area("Enter Resume Text", height=250, key="clf_text")
+        
+        with col2:
+            st.write("Model Status:")
+            model_path = 'models/classifier_model.h5'
+            encoder_path = 'models/label_encoder.pkl'
+            
+            if os.path.exists(model_path) and os.path.exists(encoder_path):
+                st.success("Trained model found.")
+                is_trained = True
+            else:
+                st.warning("Model not found. Please train the model using `main.py` first.")
+                is_trained = False
+                
+        if st.button("Predict Category", type="primary"):
+            if not resume_text:
+                st.warning("Please enter some text.")
+            elif not is_trained:
+                st.error("Cannot predict without a trained model.")
+            else:
+                with st.spinner("Predicting..."):
+                    clf = ResumeClassifier(input_dim=embeddings.shape[1], num_classes=df['Category'].nunique())
+                    clf.load(model_path, encoder_path)
+                    
+                    cleaned_res = preprocessing(resume_text)
+                    res_vector = embed_model.encode([cleaned_res])
+                    pred_category = clf.predict(res_vector)[0]
+                    
+                    st.success(f"**Predicted Category:** {pred_category}")
 
+    with tab2:
+        st.header("Resume Scoring vs Job Description")
+        st.write("Calculate a match score between a resume and a job description.")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            res_input = st.text_area("Resume Content", height=300)
+        with col2:
+            jd_input = st.text_area("Job Description", height=300)
+            
+        if st.button("Calculate Match Score", type="primary"):
+            if res_input and jd_input:
+                with st.spinner("Scoring..."):
+                    score, (res_skills, jd_skills) = get_final_match_score(
+                        res_input, jd_input, embed_model, skill_extractor, preprocessing
+                    )
+                    
+                    st.metric("Final Match Score", f"{score}%")
+                    st.write("---")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write("**Extracted Resume Skills:**")
+                        if res_skills:
+                            st.write(", ".join(res_skills))
+                        else:
+                            st.write("No skills found.")
+                            
+                    with col2:
+                        st.write("**Extracted JD Skills:**")
+                        if jd_skills:
+                            st.write(", ".join(jd_skills))
+                        else:
+                            st.write("No skills found.")
+            else:
+                st.warning("Please provide both Resume and Job Description.")
+                
+    with tab3:
+        st.header("Q&A with Resumes (RAG)")
+        st.write("Ask questions about the candidates. The system uses Ollama (llama3.1) to answer based on the resume dataset.")
+        
+        query = st.text_input("Enter your question:")
+        
+        if st.button("Ask Ollama", type="primary"):
+            if query:
+                with st.spinner("Searching and generating answer..."):
+                    try:
+                        rag = ResumeRAG(df, embeddings, embed_model, ollama_model="llama3.1")
+                        answer = rag.answer(query, preprocessing)
+                        st.write("### Answer:")
+                        st.write(answer)
+                    except Exception as e:
+                        st.error(f"Error querying Ollama. Please ensure Ollama is running and `llama3.1` model is pulled. Details: {e}")
+            else:
+                st.warning("Please enter a question.")
 
-MODEL_PATH   = os.getenv("MODEL_PATH",   "resume_model.joblib")
-ENCODER_PATH = os.getenv("ENCODER_PATH", "label_encoder.joblib")
-
-pipeline, le = None, None
-
-
-@app.on_event("startup")
-def load():
-    global pipeline, le
-    if not os.path.exists(MODEL_PATH) or not os.path.exists(ENCODER_PATH):
-        raise RuntimeError(
-            "Model files not found. Run the Colab notebook first and place "
-            "resume_model.joblib + label_encoder.joblib in the project folder."
-        )
-    pipeline, le = load_models(MODEL_PATH, ENCODER_PATH)
-
-
-class AnalyzeRequest(BaseModel):
-    resume_text: str
-    jd_text: str
-
-
-@app.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
-    if file.content_type != "application/pdf":
-        raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
-    contents = await file.read()
-    reader   = PdfReader(io.BytesIO(contents))
-    text     = "\n".join(p.extract_text() or "" for p in reader.pages).strip()
-    if not text:
-        raise HTTPException(status_code=422, detail="Could not extract text from this PDF.")
-    return {"text": text}
-
-
-@app.post("/analyze")
-def analyze(body: AnalyzeRequest):
-    if not body.resume_text.strip():
-        raise HTTPException(status_code=400, detail="Resume text is empty.")
-    if not body.jd_text.strip():
-        raise HTTPException(status_code=400, detail="Job description is empty.")
-
-    report   = match_resume_to_jd(body.resume_text, body.jd_text, pipeline)
-    info     = extract_info(body.resume_text)
-    category = predict_category(body.resume_text, pipeline, le)
-
-    return {
-        "match_score":        report.final_score,
-        "content_similarity": round(report.cosine_score * 100),
-        "skill_coverage":     round(report.skill_score  * 100),
-        "predicted_category": category,
-        "matched_skills":     report.matched_skills,
-        "missing_skills":     report.missing_skills,
-        "resume_skills":      report.resume_skills,
-        "jd_skills":          report.jd_skills,
-        "education":          list(info["EDUCATION"]),
-        "experience_years":   info["EXPERIENCE_YEARS"],
-    }
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "model_loaded": pipeline is not None}
-
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+if __name__ == "__main__":
+    main()

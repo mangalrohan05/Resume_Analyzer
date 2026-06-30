@@ -6,6 +6,7 @@ from sklearn.metrics import classification_report
 import tf_keras as keras
 from tf_keras import layers
 import pickle
+from src.config import CFG
 
 class ResumeClassifier:
     def __init__(self, input_dim, num_classes):
@@ -19,16 +20,21 @@ class ResumeClassifier:
         ])
         self.model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
     
-    def train(self, X, y_raw, epochs=50, batch_size=32):
+    def train(self, X, y_raw, epochs: int = None, batch_size: int = None):
+        epochs = epochs or CFG.CLASSIFIER_EPOCHS
+        batch_size = batch_size or CFG.CLASSIFIER_BATCH_SIZE
         y = self.label_encoder.fit_transform(y_raw)
-        X_train, X_test, y_train, y_test = tts(X, y, test_size=0.2, random_state=42, stratify=y) 
-        
-        history=self.model.fit(
+        X_train, X_test, y_train, y_test = tts(X, y, test_size=0.2, random_state=42, stratify=y)
+
+        history = self.model.fit(
             X_train, y_train,
             validation_split=0.1,
             epochs=epochs,
             batch_size=batch_size,
-            callbacks=[keras.callbacks.EarlyStopping(patience=5, restore_best_weights=True)]
+            callbacks=[keras.callbacks.EarlyStopping(
+                patience=CFG.EARLY_STOPPING_PATIENCE,
+                restore_best_weights=True
+            )]
         )
         y_pred = self.model.predict(X_test).argmax(axis=1)
         report = classification_report(y_test, y_pred, target_names=self.label_encoder.classes_)
@@ -39,12 +45,16 @@ class ResumeClassifier:
         idx = probs.argmax(axis=1)
         return self.label_encoder.inverse_transform(idx)
     
-    def save(self, model_path, encoder_path):
+    def save(self, model_path: str = None, encoder_path: str = None):
+        model_path = model_path or CFG.MODEL_SAVE_PATH
+        encoder_path = encoder_path or CFG.ENCODER_SAVE_PATH
         self.model.save(model_path)
         with open(encoder_path, 'wb') as f:
             pickle.dump(self.label_encoder, f)
             
-    def load(self, model_path, encoder_path):
+    def load(self, model_path: str = None, encoder_path: str = None):
+        model_path = model_path or CFG.MODEL_SAVE_PATH
+        encoder_path = encoder_path or CFG.ENCODER_SAVE_PATH
         self.model = keras.models.load_model(model_path)
         with open(encoder_path, 'rb') as f:
             self.label_encoder = pickle.load(f)

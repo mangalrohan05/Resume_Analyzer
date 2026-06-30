@@ -29,6 +29,6 @@ class Config:
     CHROMA_COLLECTION: str = "resumes"
 
     # Evaluation
-    MATCH_SCORE_THRESHOLD: float = 70.0
+    MATCH_SCORE_THRESHOLD: float = 60.0
 
 CFG = Config()

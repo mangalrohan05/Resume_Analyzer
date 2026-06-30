@@ -6,7 +6,7 @@ class EmbeddingModel:
         self.model = ST(model_name)
     
     def encode(self, texts, show_progress_bar=False):
-        return self.model.encode(texts, show_progress_bar)
+        return self.model.encode(texts, show_progress_bar=show_progress_bar)
     
     def save(self, embeddings, path):
         np.save(path, embeddings)

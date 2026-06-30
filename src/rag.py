@@ -11,7 +11,7 @@ class ResumeRAG:
         self.ollama_url = "http://localhost:11434/api/generate"
         
     def retrieve(self, query, preprocess_fn, top_k=5):
-        query_vec = self.embed_model.encode(preprocess_fn([query]))
+        query_vec = self.embed_model.encode([preprocess_fn(query)])
         sims = cosine_similarity(query_vec, self.embeddings)[0]
         top_idx = np.argsort(sims)[::-1][:top_k]
         return self.df.iloc[top_idx][['Resume_str', 'Category']], sims[top_idx]

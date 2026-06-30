@@ -3,16 +3,15 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split as tts
 from sklearn.metrics import classification_report
 
-from tensorflow import keras
-from tensorflow.keras import layers
+import tf_keras as keras
+from tf_keras import layers
 import pickle
 
 class ResumeClassifier:
     def __init__(self, input_dim, num_classes):
         self.label_encoder = LabelEncoder()
         self.model = keras.Sequential([
-            layers.Input(shape = (input_dim,)),
-            layers.Dense(256, activation='relu'),
+            layers.Dense(256, activation='relu', input_shape=(input_dim,)),
             layers.Dropout(0.3),
             layers.Dense(128, activation='relu'),
             layers.Dropout(0.3),

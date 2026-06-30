@@ -25,14 +25,14 @@ clf.save('models/classifier_model.h5', 'models/label_encoder.pkl')
 skill_extractor = SkillExtractor()
 
 # 5. Scoring
-score, res_skills, jd_skills = get_final_match_score(
+score, (res_skills, jd_skills) = get_final_match_score(
     df['Resume_str'].iloc[0],
     "Looking for a Python developer with machine learning and NLP experience",
     embed_model, skill_extractor, preprocessing
 )
 
 # 6. RAG
-rag = ResumeRAG(df, embeddings, embed_model.model, ollama_model="llama3.1")
+rag = ResumeRAG(df, embeddings, embed_model, ollama_model="llama3.1")
 answer = rag.answer(
     "Which candidates have strong Python and ML experience but lack leadership roles?",
     preprocessing

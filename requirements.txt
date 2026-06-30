@@ -7,3 +7,4 @@ spacy
 tensorflow
 requests
 streamlit
+tf-keras

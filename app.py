@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from src.preprocessing import preprocessing
 from src.embeddings import EmbeddingModel
@@ -11,10 +14,15 @@ from src.classifier import ResumeClassifier
 from src.scoring import get_final_match_score
 from src.vector_store import VectorStore
 from src.utils import safe_answer, validate_text, extract_text_from_pdf
-from src.evaluation import evaluate_matcher, build_sample_eval_pairs, precision_recall_at_k
+from src.evaluation import evaluate_matcher, build_sample_eval_pairs, precision_recall_at_k, run_full_evaluation
 from src.config import CFG
 
 st.set_page_config(page_title="Resume Analyzer", layout="wide", page_icon="📄")
+
+try:
+    api_key = st.secrets.get("GEMINI_API_KEY")
+except Exception:
+    api_key = os.environ.get("GEMINI_API_KEY")
 
 @st.cache_resource
 def load_embedding_model():
@@ -36,14 +44,15 @@ def load_data():
     return None
 
 @st.cache_data
-def get_cleaned_texts(_df):
-    return _df['Resume_str'].apply(preprocessing).tolist()
-
-@st.cache_data
 def get_resume_embeddings(_embed_model, texts):
     """Encode and cache all resume embeddings. Leading _ prevents hashing the model."""
     return _embed_model.encode(texts, show_progress_bar=False)
 
+@st.cache_resource
+def load_classifier(_embeddings, num_classes):
+    clf = ResumeClassifier(input_dim=_embeddings.shape[1], num_classes=num_classes)
+    clf.load()
+    return clf
 
 def main():
     st.title("📄 Resume Analyzer")
@@ -63,14 +72,13 @@ def main():
         st.error(f"Dataset not found at `{CFG.DATA_PATH}`.")
         st.stop()
 
-    # Embeddings (cached on disk too)
+    # Embeddings — embed raw text (BERT works better without preprocessing)
     if os.path.exists(CFG.EMBEDDINGS_SAVE_PATH):
         embeddings = embed_model.load(CFG.EMBEDDINGS_SAVE_PATH)
     else:
         with st.spinner("Generating embeddings (one-time setup, may take a minute)…"):
             os.makedirs("models", exist_ok=True)
-            texts = get_cleaned_texts(df)
-            embeddings = get_resume_embeddings(embed_model, texts)
+            embeddings = get_resume_embeddings(embed_model, df['Resume_str'].tolist())
             embed_model.save(embeddings, CFG.EMBEDDINGS_SAVE_PATH)
             st.success("Embeddings generated and saved!")
 
@@ -86,53 +94,56 @@ def main():
 
     # ── Tab 1: Classification ─────────────────────────────────────────────────
     with tab1:
-        st.header("Resume Classification")
-        st.write("Predict the job category of a given resume text using the trained neural classifier.")
+        st.header("Resume Category Classifier")
+        uploaded_resume = st.file_uploader("Upload Resume PDF", type=["pdf"], key="clf_upload")
 
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            uploaded_clf = st.file_uploader(
-                "Upload Resume PDF", type=["pdf"], key="clf_pdf"
-            )
-            resume_text = ""
-            if uploaded_clf is not None:
+        if uploaded_resume:
+            with st.spinner("Extracting text..."):
                 try:
-                    resume_text = extract_text_from_pdf(uploaded_clf)
-                    with st.expander("📄 Extracted Text Preview"):
-                        st.text(resume_text[:1500] + ("…" if len(resume_text) > 1500 else ""))
+                    resume_text = extract_text_from_pdf(uploaded_resume)
+                    is_valid = True
+                    msg = ""
                 except ValueError as e:
-                    st.error(str(e))
+                    is_valid = False
+                    msg = str(e)
+                    resume_text = ""
 
-        with col2:
-            st.markdown("**Model Status**")
-            is_trained = (
-                os.path.exists(CFG.MODEL_SAVE_PATH)
-                and os.path.exists(CFG.ENCODER_SAVE_PATH)
-            )
-            if is_trained:
-                st.success("✅ Trained model found")
-            else:
-                st.warning("⚠️ No trained model. Run `python main.py` first.")
+            try:
+                if is_valid:
+                    validate_text(resume_text, name="Resume")
+            except ValueError as e:
+                is_valid = False
+                msg = str(e)
 
-        if st.button("Predict Category", type="primary", key="btn_clf"):
-            if not resume_text or not resume_text.strip():
-                st.warning("Please enter some resume text.")
-            elif not is_trained:
-                st.error("Cannot predict — no trained model found.")
+            if not is_valid:
+                st.error(msg)
             else:
-                with st.spinner("Predicting…"):
-                    try:
-                        clf = ResumeClassifier(
-                            input_dim=embeddings.shape[1],
-                            num_classes=df["Category"].nunique()
-                        )
-                        clf.load()
-                        cleaned_res = preprocessing(resume_text)
-                        res_vector = embed_model.encode([cleaned_res])
-                        pred_category = clf.predict(res_vector)[0]
-                        st.success(f"🏷️ **Predicted Category:** {pred_category}")
-                    except Exception as e:
-                        st.error(f"Prediction failed: {e}")
+                with st.spinner("Classifying..."):
+                    clf = load_classifier(embeddings, df["Category"].nunique())
+                    # Embed raw text — consistent with how the model was trained
+                    res_vector = embed_model.encode([resume_text])
+
+                    # ✅ NEW PREDICTION BLOCK
+                    probs = clf.model.predict(res_vector)[0]
+                    top_idx = probs.argmax()
+                    confidence = float(probs[top_idx]) * 100
+                    pred_category = clf.label_encoder.inverse_transform([top_idx])[0]
+
+                    st.success(f"🏷️ **{pred_category}** ({confidence:.1f}% confidence)")
+
+                    if confidence < 60.0:
+                        st.warning("⚠️ Low confidence — this resume may span multiple job categories.")
+
+                    st.markdown("**Top 3 category matches:**")
+                    top3_idx = probs.argsort()[::-1][:3]
+                    for rank, idx in enumerate(top3_idx, 1):
+                        cat   = clf.label_encoder.inverse_transform([idx])[0]
+                        score = float(probs[idx]) * 100
+                        bar   = "█" * int(score // 5) + "░" * (20 - int(score // 5))
+                        st.text(f"{rank}. {cat:<30} {bar} {score:.1f}%")
+
+                with st.expander("Preview extracted text"):
+                    st.text(resume_text[:1500] + ("…" if len(resume_text) > 1500 else ""))
 
     # ── Tab 2: Scoring ────────────────────────────────────────────────────────
     with tab2:
@@ -202,20 +213,20 @@ def main():
         st.header("Q&A with Resume Dataset (RAG)")
         st.write(
             "Ask natural language questions about the candidates. "
-            "Uses ChromaDB for retrieval and Ollama (llama3.1) for generation."
+            "Uses ChromaDB for retrieval and **Google Gemini** for generation."
         )
 
         query = st.text_input("Enter your question:", key="rag_query")
         top_k = st.slider("Number of resumes to retrieve", min_value=1, max_value=10,
                            value=CFG.TOP_K, key="rag_top_k")
 
-        if st.button("Ask Ollama", type="primary", key="btn_rag"):
+        if st.button("Ask Gemini", type="primary", key="btn_rag"):
             if not query or not query.strip():
                 st.warning("Please enter a question.")
             else:
                 with st.spinner("Retrieving and generating answer…"):
                     rag = ResumeRAG(
-                        df, embeddings, embed_model,
+                        df, embeddings, embed_model, api_key=api_key,
                         vector_store=vector_store
                     )
                     # Phase 2: safe_answer with retry logic
@@ -243,30 +254,37 @@ def main():
             "generated from the dataset."
         )
 
-        n_pos = st.slider("Positive pairs", 2, 10, 5, key="eval_pos")
-        n_neg = st.slider("Negative pairs", 2, 10, 5, key="eval_neg")
+        n_neg = st.slider("Negative pairs per resume", 1, 10, 2, key="eval_neg")
 
         if st.button("Run Evaluation", type="primary", key="btn_eval"):
             with st.spinner("Building eval set and scoring…"):
-                eval_pairs = build_sample_eval_pairs(df, n_positive=n_pos, n_negative=n_neg)
-
                 def scoring_fn(resume, jd):
-                    return get_final_match_score(resume, jd, embed_model, skill_extractor, preprocessing)
+                    score, res_skills, jd_skills = get_final_match_score(
+                        resume, jd, embed_model, skill_extractor, preprocessing
+                    )
+                    return score, (res_skills, jd_skills)
 
-                accuracy, df_eval = evaluate_matcher(eval_pairs, scoring_fn)
+                accuracy, df_eval = run_full_evaluation(df, scoring_fn, n_negative=n_neg)
 
-            st.metric("Matching Accuracy", f"{accuracy * 100:.1f}%")
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Accuracy", f"{accuracy * 100:.1f}%")
+            col2.metric("Precision", f"{df_eval['precision'].iloc[0] * 100:.1f}%" if len(df_eval) else "0%")
+            col3.metric("Recall", f"{df_eval['recall'].iloc[0] * 100:.1f}%" if len(df_eval) else "0%")
+            col4.metric("F1 Score", f"{df_eval['f1'].iloc[0] * 100:.1f}%" if len(df_eval) else "0%")
+
             st.caption(
                 f"Threshold: a score ≥ {CFG.MATCH_SCORE_THRESHOLD}% is considered a match."
             )
             st.divider()
 
-            # Colour correct/incorrect
+            # Colour correct/incorrect rows
             def highlight_row(row):
                 color = "background-color: #d4edda" if row["correct"] else "background-color: #f8d7da"
                 return [color] * len(row)
 
-            styled = df_eval.style.apply(highlight_row, axis=1)
+            # Drop the repeated metrics for display
+            display_df = df_eval.drop(columns=["precision", "recall", "f1"], errors="ignore")
+            styled = display_df.style.apply(highlight_row, axis=1)
             st.dataframe(styled, use_container_width=True)
 
             correct = df_eval["correct"].sum()
@@ -274,6 +292,28 @@ def main():
                 f"✅ {correct}/{len(df_eval)} pairs correctly classified "
                 f"({'positive' if correct > len(df_eval)//2 else 'negative'} leaning)"
             )
+
+        # ── Precision@K / Recall@K ────────────────────────────────────────────
+        st.divider()
+        st.subheader("📐 Retrieval Metrics — Precision@K / Recall@K")
+        st.caption(
+            "Measures how many of the top-K retrieved resumes belong to the same category "
+            "as the query resume. Higher = better retrieval."
+        )
+        k_val = st.slider("K (retrieval cut-off)", 1, 10, CFG.TOP_K, key="eval_k")
+        if st.button("Compute P@K / R@K", key="btn_prk"):
+            with st.spinner("Running retrieval evaluation…"):
+                prk_results = []
+                sample_cats = df["Category"].unique()[:8]
+                for cat in sample_cats:
+                    cat_ids = set(df[df["Category"] == cat].index.astype(str).tolist())
+                    sample_row = df[df["Category"] == cat].iloc[0]
+                    query_vec = embed_model.encode([sample_row["Resume_str"]])[0]
+                    result = vector_store.query(query_vec, top_k=k_val)
+                    retrieved_ids = result["ids"][0]
+                    metrics = precision_recall_at_k(retrieved_ids, cat_ids, k=k_val)
+                    prk_results.append({"Category": cat, **metrics})
+            st.dataframe(pd.DataFrame(prk_results), use_container_width=True)
 
 
 if __name__ == "__main__":

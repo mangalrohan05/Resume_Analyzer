@@ -8,10 +8,14 @@ from src.classifier import ResumeClassifier
 from src.scoring import get_final_match_score
 from src.vector_store import VectorStore
 from src.config import CFG
+from src.utils import safe_answer
+from dotenv import load_dotenv
 
-# 1. Load & preprocess data
+# Loading env variables
+load_dotenv()
+
+# 1. Load data
 df = pd.read_csv(CFG.DATA_PATH, skip_blank_lines=True)
-df['cleaned_text'] = df['Resume_str'].apply(preprocessing)
 
 # 2. Embeddings (load cached if available)
 embed_model = EmbeddingModel()
@@ -21,7 +25,8 @@ if os.path.exists(CFG.EMBEDDINGS_SAVE_PATH):
     embeddings = embed_model.load(CFG.EMBEDDINGS_SAVE_PATH)
 else:
     print("Generating embeddings...")
-    embeddings = embed_model.encode(df['cleaned_text'].tolist(), show_progress_bar=True)
+    # Embed raw text — BERT performs better on natural language than preprocessed text
+    embeddings = embed_model.encode(df['Resume_str'].tolist(), show_progress_bar=True)
     embed_model.save(embeddings, CFG.EMBEDDINGS_SAVE_PATH)
 
 # 3. Classifier (train only if model doesn't exist)
@@ -58,9 +63,24 @@ print(f"Resume Skills: {res_skills}")
 print(f"JD Skills: {jd_skills}")
 
 # 7. RAG demo
-rag = ResumeRAG(df, embeddings, embed_model, vector_store=vector_store)
-answer = rag.answer(
+api_key = os.environ.get("GEMINI_API_KEY")
+rag = ResumeRAG(df, embeddings, embed_model, api_key=api_key, vector_store=vector_store)
+answer = safe_answer(
+    rag,
     "Which candidates have strong Python and ML experience but lack leadership roles?",
     preprocessing
 )
 print(f"\nRAG Answer:\n{answer}")
+
+# 8. Evaluation demo
+print("\nRunning Evaluation demo...")
+from src.evaluation import run_full_evaluation
+
+def scoring_fn(resume, jd):
+    s, res_s, jd_s = get_final_match_score(
+        resume, jd, embed_model, skill_extractor, preprocessing
+    )
+    return s, (res_s, jd_s)
+
+accuracy, df_eval = run_full_evaluation(df, scoring_fn, n_negative=2)
+print(f"Evaluation Accuracy: {accuracy * 100:.1f}%")

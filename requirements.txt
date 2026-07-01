@@ -5,9 +5,10 @@ sentence-transformers
 scikit-learn
 spacy
 tensorflow
-requests
 streamlit
 tf-keras
 chromadb
 pdfplumber
+python-dotenv
+google-genai
 # Run separately (not pip): ollama (install from ollama.com, then `ollama pull llama3.1`)

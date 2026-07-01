@@ -361,6 +361,28 @@ skill_patterns = [
     {"label": "SKILL", "pattern": [{"LOWER": "decision"}, {"LOWER": "making"}]},
     {"label": "SKILL", "pattern": [{"LOWER": "negotiation"}]},
     {"label": "SKILL", "pattern": [{"LOWER": "multitasking"}]},
+
+    # These are currently missing and will cause misses on most ML/AI resumes
+    {"label": "SKILL", "pattern": [{"LOWER": "tensorflow"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "keras"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "pytorch"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "bert"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "huggingface"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "transformers"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "fastapi"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "opencv"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "mediapipe"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "lstm"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "cnn"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "docker"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "aws"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "git"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "react"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "node"}, {"LOWER": "js"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "rest"}, {"LOWER": "api"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "sql"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "postgresql"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "mongodb"}]}
 ]
 
 

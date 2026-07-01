@@ -19,10 +19,6 @@ from src.config import CFG
 
 st.set_page_config(page_title="Resume Analyzer", layout="wide", page_icon="📄")
 
-try:
-    api_key = st.secrets.get("GEMINI_API_KEY")
-except Exception:
-    api_key = os.environ.get("GEMINI_API_KEY")
 
 @st.cache_resource
 def load_embedding_model():
@@ -213,20 +209,20 @@ def main():
         st.header("Q&A with Resume Dataset (RAG)")
         st.write(
             "Ask natural language questions about the candidates. "
-            "Uses ChromaDB for retrieval and **Google Gemini** for generation."
+            "Uses ChromaDB for retrieval and **Ollama** for local generation."
         )
 
         query = st.text_input("Enter your question:", key="rag_query")
         top_k = st.slider("Number of resumes to retrieve", min_value=1, max_value=10,
                            value=CFG.TOP_K, key="rag_top_k")
 
-        if st.button("Ask Gemini", type="primary", key="btn_rag"):
+        if st.button("Ask Ollama", type="primary", key="btn_rag"):
             if not query or not query.strip():
                 st.warning("Please enter a question.")
             else:
                 with st.spinner("Retrieving and generating answer…"):
                     rag = ResumeRAG(
-                        df, embeddings, embed_model, api_key=api_key,
+                        df, embeddings, embed_model,
                         vector_store=vector_store
                     )
                     # Phase 2: safe_answer with retry logic

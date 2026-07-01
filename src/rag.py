@@ -2,25 +2,17 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 from src.config import CFG
-import os
-from google import genai
-from google.genai import types
+import requests
 
 
 class ResumeRAG:
 
-    def __init__(self, df, embeddings, embed_model, api_key=None, model_name=None, vector_store=None):
+    def __init__(self, df, embeddings, embed_model, model_name=None, vector_store=None):
         self.df = df.reset_index(drop=True)
         self.embeddings = embeddings
         self.embed_model = embed_model
         self.vector_store = vector_store  # Optional ChromaDB VectorStore
-
-        api_key = api_key or os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY not found. Set it as an env var or pass it directly.")
-
-        self.client = genai.Client(api_key=api_key)
-        self.model_name = model_name or CFG.GEMINI_MODEL
+        self.model_name = model_name or CFG.OLLAMA_MODEL
 
     def retrieve(self, query: str, preprocess_fn, top_k: int = None):
         top_k = top_k or CFG.TOP_K
@@ -65,8 +57,15 @@ class ResumeRAG:
             "- Be concise and structured.\n\n"
             "Answer:"
         )
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=prompt
-        )
-        return response.text
+        payload = {
+            "model": self.model_name,
+            "prompt": prompt,
+            "stream": False
+        }
+        
+        try:
+            response = requests.post("http://localhost:11434/api/generate", json=payload, timeout=120)
+            response.raise_for_status()
+            return response.json().get("response", "")
+        except requests.exceptions.RequestException as e:
+            return f"Error communicating with Ollama: {str(e)}"

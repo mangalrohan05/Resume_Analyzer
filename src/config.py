@@ -5,8 +5,8 @@ class Config:
     # Embedding model
     EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"  # 768-dim
 
-    # Gemini RAG model (google.genai SDK)
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    # Ollama RAG model
+    OLLAMA_MODEL: str = "llama3.1"
 
     # Retrieval settings
     TOP_K: int = 5

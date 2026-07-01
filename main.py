@@ -63,8 +63,7 @@ print(f"Resume Skills: {res_skills}")
 print(f"JD Skills: {jd_skills}")
 
 # 7. RAG demo
-api_key = os.environ.get("GEMINI_API_KEY")
-rag = ResumeRAG(df, embeddings, embed_model, api_key=api_key, vector_store=vector_store)
+rag = ResumeRAG(df, embeddings, embed_model, vector_store=vector_store)
 answer = safe_answer(
     rag,
     "Which candidates have strong Python and ML experience but lack leadership roles?",
@@ -77,7 +76,7 @@ print("\nRunning Evaluation demo...")
 from src.evaluation import run_full_evaluation
 
 def scoring_fn(resume, jd):
-    s, res_s, jd_s = get_final_match_score(
+    s, (res_s, jd_s) = get_final_match_score(
         resume, jd, embed_model, skill_extractor, preprocessing
     )
     return s, (res_s, jd_s)

@@ -10,7 +10,7 @@ An AI-powered resume screening tool that matches resumes against job description
 - **Hybrid Match Scoring** — combines semantic similarity (65%) and skill overlap (35%) into a single score out of 100
 - **Neural Network Classifier** — three-layer Keras feedforward network classifies resumes into job categories using embeddings as input, showing top 3 category matches and confidence
 - **ChromaDB Vector Store** — resumes are indexed into a persistent ChromaDB collection on first run; subsequent queries hit the DB
-- **RAG-based Q&A** — retrieves top-K resumes from ChromaDB by embedding similarity, builds a context window, and sends a prompt to **Gemini 2.0 Flash** via the `google-genai` SDK for natural-language answers (includes rate-limit handling and exponential backoff)
+- **RAG-based Q&A** — retrieves top-K resumes from ChromaDB by embedding similarity, builds a context window, and sends a prompt to a local **Ollama** model for natural-language answers
 - **Comprehensive Evaluation Suite** — automatically builds labeled evaluation pairs from a dataset of 1300+ lines of diverse job descriptions and reports Accuracy, Precision, Recall, and F1 Score for matching
 
 ## Project Flow
@@ -43,7 +43,7 @@ An AI-powered resume screening tool that matches resumes against job description
   │ pdfplumber       │ pdfplumber       │ Preprocess       │ eval pairs      │
   │ BERT embed       │ BERT embed both  │ ChromaDB top-K   │ Score each pair │
   │ Keras predict    │ Cosine sim       │ Build context    │ Report metrics  │
-  │ → Top 3 Labels   │ + Skill overlap  │ Gemini LLM gen.  │ (Acc, P, R, F1) │
+  │ → Top 3 Labels   │ + Skill overlap  │ Ollama local gen.│ (Acc, P, R, F1) │
   │ & Confidence     │ → Match score %  │ → Answer         │                 │
   └──────────────────┴──────────────────┴──────────────────┴─────────────────┘
 ```

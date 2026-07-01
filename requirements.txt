@@ -10,5 +10,5 @@ tf-keras
 chromadb
 pdfplumber
 python-dotenv
-google-genai
-# Run separately (not pip): ollama (install from ollama.com, then `ollama pull llama3.1`)
+requests
+# Run separately (not pip): ollama (install from ollama.com, then `ollama pull llama3`)

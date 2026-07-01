@@ -11,7 +11,7 @@ class Config:
     # Retrieval settings
     TOP_K: int = 5
     MAX_CONTEXT_CHARS: int = 3000
-    RAG_RESUME_SKIP: int = 150   # chars to skip at start of each resume (contact info)
+    RAG_RESUME_SKIP: int = 100   # chars to skip at start of each resume, not needed
     RAG_RESUME_CHARS: int = 700  # chars to include per resume in RAG context
 
     # Scoring weights

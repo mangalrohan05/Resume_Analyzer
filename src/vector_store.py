@@ -5,8 +5,6 @@ from src.config import CFG
 
 
 class VectorStore:
-    """Persistent ChromaDB-backed vector store for resume embeddings."""
-
     def __init__(self, collection_name: str = None, db_path: str = None):
         self.db_path = db_path or CFG.CHROMA_DB_PATH
         self.collection_name = collection_name or CFG.CHROMA_COLLECTION

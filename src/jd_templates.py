@@ -1352,17 +1352,7 @@ JD_TEMPLATES = {
 # ---------------------------------------------------------------------------
 
 def build_eval_pairs(df, jd_templates=JD_TEMPLATES, n_negative=2):
-    """
-    Build evaluation pairs from the resume dataframe and JD templates.
 
-    Args:
-        df: Resume dataframe with 'Resume_str' and 'Category' columns.
-        jd_templates: dict of {category: [jd1, jd2, jd3]}
-        n_negative: number of negative JDs to pair with each resume sample
-
-    Returns:
-        List of (resume_text, jd_text, is_match: bool)
-    """
     import random
     random.seed(42)
 

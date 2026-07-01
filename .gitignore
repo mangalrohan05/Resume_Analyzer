@@ -1,12 +1,12 @@
-# # Generated artifacts — regenerate with python main.py
-# models/
-# chroma_db/
-# *.npy
-# *.h5
-# *.pkl
+# Generated artifacts — regenerate with python main.py
+models/
+chroma_db/
+*.npy
+*.h5
+*.pkl
 
-# # Environment
-# .env
-# __pycache__/
-# *.pyc
-# .streamlit/secrets.toml
+# Environment
+.env
+__pycache__/
+*.pyc
+.streamlit/secrets.toml

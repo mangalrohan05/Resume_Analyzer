@@ -1,3 +1,4 @@
+from nltk import data
 import spacy
 
 skill_patterns = [
@@ -382,15 +383,64 @@ skill_patterns = [
     {"label": "SKILL", "pattern": [{"LOWER": "rest"}, {"LOWER": "api"}]},
     {"label": "SKILL", "pattern": [{"LOWER": "sql"}]},
     {"label": "SKILL", "pattern": [{"LOWER": "postgresql"}]},
-    {"label": "SKILL", "pattern": [{"LOWER": "mongodb"}]}
+    {"label": "SKILL", "pattern": [{"LOWER": "mongodb"}]},
+
+    # Aliases — same skill, different surface forms
+    {"label": "SKILL", "pattern": [{"LOWER": "huggingface"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "hugging"}, {"LOWER": "face"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "machine"}, {"LOWER": "learning"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "deep"}, {"LOWER": "learning"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "scikit"}, {"LOWER": "learn"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "sklearn"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "transformers"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "pytorch"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "torch"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "docker"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "aws"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "gcp"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "sql"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "mysql"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "postgresql"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "kubernetes"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "streamlit"}]},
+    {"label": "SKILL", "pattern": [{"LOWER": "scikit"}]},
 ]
 
+SKILL_ALIASES = {
+    "Huggingface":     "Hugging Face",
+    "Hf":              "Hugging Face",
+    "Sklearn":         "Scikit-Learn",
+    "Scikit Learn":    "Scikit-Learn",
+    "Scikit-Learn":    "Scikit-Learn",
+    "Torch":           "Pytorch",
+    "Ml":              "Machine Learning",
+    "Dl":              "Deep Learning",
+    "Cv":              "Computer Vision",
+    "Nlp":             "Nlp",
+    "Mysql":           "Sql",
+    "Postgresql":      "Sql",
+    "Mariadb":         "Sql",
+    "Github":          "Git",
+    "Rest Api":        "Rest Api",
+    "Restful Api":     "Rest Api",
+    "Fastapi":         "Fastapi",
+    "Fast Api":        "Fastapi",
+    "Aws":             "Aws",
+    "Amazon Web Services": "Aws",
+    "Gcp":             "Gcp",
+    "Google Cloud":    "Gcp",
+}
+
+def normalize_skill(skill: str) -> str:
+    titled = skill.strip().title()
+    return SKILL_ALIASES.get(titled, titled)
 
 class SkillExtractor:
     def __init__(self):
         self.nlp = spacy.load("en_core_web_sm")
         ruler = self.nlp.add_pipe("entity_ruler", before="ner")
         ruler.add_patterns(skill_patterns)
+
         
     def extract(self, text: str):
         doc = self.nlp(text)
@@ -401,7 +451,8 @@ class SkillExtractor:
                 continue
             
             if ent.label_ == "SKILL":
-                data["SKILLS"].add(ent.text.title())
+                normalized = normalize_skill(ent.text)
+                data["SKILLS"].add(normalized)
             elif ent.label_ in ["ORG", "NORP"]:
                 data["ORGANIZATIONS"].add(ent.text)
             elif ent.label_ in ["DATE", "QUANTITY"] and any(c.isdigit() for c in ent.text):

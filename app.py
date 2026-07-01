@@ -10,7 +10,6 @@ from src.preprocessing import preprocessing
 from src.embeddings import EmbeddingModel
 from src.skill_extractor import SkillExtractor
 from src.rag import ResumeRAG
-from src.classifier import ResumeClassifier
 from src.scoring import get_final_match_score
 from src.vector_store import VectorStore
 from src.utils import safe_answer, validate_text, extract_text_from_pdf
@@ -43,12 +42,6 @@ def load_data():
 def get_resume_embeddings(_embed_model, texts):
     """Encode and cache all resume embeddings. Leading _ prevents hashing the model."""
     return _embed_model.encode(texts, show_progress_bar=False)
-
-@st.cache_resource
-def load_classifier(_embeddings, num_classes):
-    clf = ResumeClassifier(input_dim=_embeddings.shape[1], num_classes=num_classes)
-    clf.load()
-    return clf
 
 def main():
     st.title("📄 Resume Analyzer")
@@ -84,65 +77,12 @@ def main():
             vector_store.add_resumes(df, embeddings)
             st.success(f"Indexed {df.shape[0]} resumes into ChromaDB.")
 
-    tab1, tab2, tab3, tab4 = st.tabs(
-        ["📊 Classification", "🎯 Scoring", "💬 RAG Q&A", "📈 Evaluation"]
+    tab1, tab2, tab3 = st.tabs(
+        ["🎯 Scoring", "💬 RAG Q&A", "📈 Evaluation"]
     )
 
-    # ── Tab 1: Classification ─────────────────────────────────────────────────
+    # ── Tab 1: Scoring ────────────────────────────────────────────────────────
     with tab1:
-        st.header("Resume Category Classifier")
-        uploaded_resume = st.file_uploader("Upload Resume PDF", type=["pdf"], key="clf_upload")
-
-        if uploaded_resume:
-            with st.spinner("Extracting text..."):
-                try:
-                    resume_text = extract_text_from_pdf(uploaded_resume)
-                    is_valid = True
-                    msg = ""
-                except ValueError as e:
-                    is_valid = False
-                    msg = str(e)
-                    resume_text = ""
-
-            try:
-                if is_valid:
-                    validate_text(resume_text, name="Resume")
-            except ValueError as e:
-                is_valid = False
-                msg = str(e)
-
-            if not is_valid:
-                st.error(msg)
-            else:
-                with st.spinner("Classifying..."):
-                    clf = load_classifier(embeddings, df["Category"].nunique())
-                    # Embed raw text — consistent with how the model was trained
-                    res_vector = embed_model.encode([resume_text])
-
-                    # ✅ NEW PREDICTION BLOCK
-                    probs = clf.model.predict(res_vector)[0]
-                    top_idx = probs.argmax()
-                    confidence = float(probs[top_idx]) * 100
-                    pred_category = clf.label_encoder.inverse_transform([top_idx])[0]
-
-                    st.success(f"🏷️ **{pred_category}** ({confidence:.1f}% confidence)")
-
-                    if confidence < 60.0:
-                        st.warning("⚠️ Low confidence — this resume may span multiple job categories.")
-
-                    st.markdown("**Top 3 category matches:**")
-                    top3_idx = probs.argsort()[::-1][:3]
-                    for rank, idx in enumerate(top3_idx, 1):
-                        cat   = clf.label_encoder.inverse_transform([idx])[0]
-                        score = float(probs[idx]) * 100
-                        bar   = "█" * int(score // 5) + "░" * (20 - int(score // 5))
-                        st.text(f"{rank}. {cat:<30} {bar} {score:.1f}%")
-
-                with st.expander("Preview extracted text"):
-                    st.text(resume_text[:1500] + ("…" if len(resume_text) > 1500 else ""))
-
-    # ── Tab 2: Scoring ────────────────────────────────────────────────────────
-    with tab2:
         st.header("Resume ↔ Job Description Matching")
         st.write(
             "Get a match score combining semantic similarity and skill overlap. "
@@ -204,8 +144,8 @@ def main():
                         st.markdown("**JD Skills Extracted**")
                         st.write(", ".join(jd_skills) if jd_skills else "_None detected_")
 
-    # ── Tab 3: RAG Q&A ────────────────────────────────────────────────────────
-    with tab3:
+    # ── Tab 2: RAG Q&A ────────────────────────────────────────────────────────
+    with tab2:
         st.header("Q&A with Resume Dataset (RAG)")
         st.write(
             "Ask natural language questions about the candidates. "
@@ -242,8 +182,8 @@ def main():
                             st.caption(str(row["Resume_str"])[:400] + "…")
                             st.divider()
 
-    # ── Tab 4: Evaluation ─────────────────────────────────────────────────────
-    with tab4:
+    # ── Tab 3: Evaluation ─────────────────────────────────────────────────────
+    with tab3:
         st.header("📈 Evaluation Metrics")
         st.write(
             "Automatically evaluate the matching quality using labeled pairs "

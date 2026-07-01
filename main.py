@@ -4,7 +4,6 @@ from src.preprocessing import preprocessing
 from src.embeddings import EmbeddingModel
 from src.skill_extractor import SkillExtractor
 from src.rag import ResumeRAG
-from src.classifier import ResumeClassifier
 from src.scoring import get_final_match_score
 from src.vector_store import VectorStore
 from src.config import CFG
@@ -28,16 +27,6 @@ else:
     # Embed raw text — BERT performs better on natural language than preprocessed text
     embeddings = embed_model.encode(df['Resume_str'].tolist(), show_progress_bar=True)
     embed_model.save(embeddings, CFG.EMBEDDINGS_SAVE_PATH)
-
-# 3. Classifier (train only if model doesn't exist)
-if not os.path.exists(CFG.MODEL_SAVE_PATH):
-    print("Training classifier...")
-    clf = ResumeClassifier(input_dim=embeddings.shape[1], num_classes=df['Category'].nunique())
-    history, report = clf.train(embeddings, df['Category'])
-    print(report)
-    clf.save()
-else:
-    print("Classifier model found, skipping training.")
 
 # 4. ChromaDB Vector Store
 print("Setting up ChromaDB vector store...")
